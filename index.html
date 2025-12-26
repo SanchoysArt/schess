@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Translator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  background: #000;
+  color: #fff;
+  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow: hidden;
+}
+
+/* МЯГКИЙ ЖИВОЙ ФОН */
+.background {
+  position: fixed;
+  inset: -50%;
+  background:
+    radial-gradient(circle at 30% 30%, #ffffff18, transparent 40%),
+    radial-gradient(circle at 70% 70%, #ffffff10, transparent 40%);
+  animation: float 18s ease-in-out infinite;
+  filter: blur(60px);
+}
+@keyframes float {
+  0%   { transform: translate(0,0); }
+  50%  { transform: translate(5%,3%); }
+  100% { transform: translate(0,0); }
+}
+
+/* МЕНЮ */
+.menu {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  font-size: 28px;
+  cursor: pointer;
+  opacity: .7;
+  transition: .3s;
+}
+.menu:hover { opacity: 1; }
+
+/* ОСНОВА */
+.app {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.columns {
+  width: 90%;
+  max-width: 1100px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  animation: appear .8s ease;
+}
+@keyframes appear {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* КАРТОЧКИ */
+.card {
+  border: 1px solid #ffffff30;
+  background: #000;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: .4s;
+}
+.card:hover {
+  border-color: #ffffff70;
+}
+
+/* ЭЛЕМЕНТЫ */
+select, textarea {
+  background: #000;
+  color: #fff;
+  border: 1px solid #ffffff30;
+  padding: 12px;
+  font-size: 16px;
+  transition: .3s;
+}
+select:hover, textarea:hover {
+  border-color: #ffffff70;
+}
+
+textarea {
+  min-height: 220px;
+  resize: none;
+  line-height: 1.5;
+}
+
+/* КНОПКА МИКРОФОНА */
+.mic {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid #ffffff40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: .7;
+  transition: .3s;
+}
+.mic:hover {
+  opacity: 1;
+  transform: scale(1.05);
+}
+</style>
+</head>
+
+<body>
+<div class="background"></div>
+
+<div class="menu">☰</div>
+
+<div class="app">
+  <div class="columns">
+
+    <!-- ЛЕВАЯ -->
+    <div class="card">
+      <select disabled>
+        <option>Автоопределение</option>
+      </select>
+
+      <textarea id="input" placeholder="Введите текст"></textarea>
+
+      <div class="mic" onclick="voice()">🎤</div>
+    </div>
+
+    <!-- ПРАВАЯ -->
+    <div class="card">
+      <select id="target">
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+      </select>
+
+      <textarea id="output" placeholder="Перевод" readonly></textarea>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const input  = document.getElementById("input");
+const output = document.getElementById("output");
+const target = document.getElementById("target");
+
+let timer;
+
+/* АВТОПЕРЕВОД (НЕ ДЁРГАЕТСЯ) */
+input.addEventListener("input", () => {
+  clearTimeout(timer);
+  timer = setTimeout(translate, 600);
+});
+
+/* РЕАЛЬНО РАБОТАЮЩИЙ API */
+async function translate() {
+  if (!input.value.trim()) {
+    output.value = "";
+    return;
+  }
+
+  try {
+    const res = await fetch("https://translate.argosopentech.com/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        q: input.value,
+        source: "auto",
+        target: target.value
+      })
+    });
+
+    const data = await res.json();
+    output.value = data.translatedText || "Ошибка перевода";
+  } catch {
+    output.value = "Нет соединения";
+  }
+}
+
+/* ГОЛОС */
+function voice() {
+  const r = new webkitSpeechRecognition();
+  r.lang = "auto";
+  r.onresult = e => input.value = e.results[0][0].transcript;
+  r.start();
+}
+</script>
+</body>
+</html>
