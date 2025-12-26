@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Glass Arcade</title>
+
+<style>
+:root {
+  --w: #fff;
+  --b: #000;
+  --g: rgba(255,255,255,.08);
+}
+
+* {
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle, #111, #000);
+  color: var(--w);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: breathe 8s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0% { filter: brightness(.85); }
+  50% { filter: brightness(1.05); }
+  100% { filter: brightness(.85); }
+}
+
+.glass {
+  backdrop-filter: blur(20px);
+  background: var(--g);
+  border-radius: 24px;
+  padding: 32px;
+  border: 1px solid rgba(255,255,255,.15);
+  box-shadow: 0 0 80px rgba(255,255,255,.15);
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
+
+h1 {
+  text-align: center;
+  font-weight: 300;
+  letter-spacing: 6px;
+  opacity: .85;
+}
+
+button {
+  background: transparent;
+  color: white;
+  border: 1px solid white;
+  padding: 12px 24px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all .5s ease;
+}
+
+button:hover {
+  background: white;
+  color: black;
+  box-shadow: 0 0 20px white;
+}
+
+.menu {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.hidden { display: none; }
+
+/* ===== MINES ===== */
+.grid {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cell {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .4s ease;
+}
+
+.cell:hover {
+  background: rgba(255,255,255,.18);
+}
+
+.cell.open {
+  background: rgba(255,255,255,.9);
+  color: black;
+  animation: pop .3s ease;
+}
+
+.cell.mine {
+  background: white;
+  color: black;
+  animation: flash .6s infinite alternate;
+}
+
+@keyframes pop {
+  from { transform: scale(.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes flash {
+  from { opacity: 1; }
+  to { opacity: .4; }
+}
+
+/* ===== TTT ===== */
+.ttt {
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  gap: 12px;
+  justify-content: center;
+}
+
+.ttt div {
+  height: 100px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.08);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 48px;
+  cursor: pointer;
+  transition: all .4s ease;
+}
+
+.ttt div:hover {
+  background: rgba(255,255,255,.2);
+}
+</style>
+</head>
+
+<body>
+<div class="glass">
+  <h1>GLASS ARCADE</h1>
+
+  <div class="menu">
+    <button onclick="show('mines')">Сапёр</button>
+    <button onclick="show('ttt')">Крестики</button>
+  </div>
+
+  <!-- MINES -->
+  <div id="mines" class="hidden">
+    <p>Открой все безопасные клетки. Мины — конец.</p>
+    <div class="menu">
+      <button onclick="startMines(8,10)">Лёгкий</button>
+      <button onclick="startMines(12,25)">Средний</button>
+      <button onclick="startMines(16,45)">Сложный</button>
+    </div>
+    <div id="field" class="grid"></div>
+  </div>
+
+  <!-- TTT -->
+  <div id="ttt" class="hidden">
+    <p>Собери линию из 3 ❌ раньше ИИ ⭕</p>
+    <button onclick="startTTT()">Начать</button>
+    <div id="tttGrid" class="ttt"></div>
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('#mines,#ttt').forEach(e=>e.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+/* ===== MINES LOGIC ===== */
+let minesData, size;
+
+function startMines(s, m) {
+  size = s;
+  const f = document.getElementById('field');
+  f.innerHTML = '';
+  f.style.gridTemplateColumns = `repeat(${s},34px)`;
+  minesData = Array(s*s).fill(0);
+
+  let placed = 0;
+  while (placed < m) {
+    let i = Math.floor(Math.random()*s*s);
+    if (minesData[i] !== 'M') {
+      minesData[i] = 'M';
+      placed++;
+    }
+  }
+
+  for (let i=0;i<s*s;i++) {
+    if (minesData[i]==='M') continue;
+    let c = 0;
+    [-1,0,1].forEach(dx=>{
+      [-1,0,1].forEach(dy=>{
+        let x=i%s+dx, y=Math.floor(i/s)+dy;
+        let n=y*s+x;
+        if (x>=0&&y>=0&&x<s&&y<s&&minesData[n]==='M') c++;
+      });
+    });
+    minesData[i]=c;
+  }
+
+  for (let i=0;i<s*s;i++) {
+    const d=document.createElement('div');
+    d.className='cell';
+    d.onclick=()=>openCell(i,d);
+    f.appendChild(d);
+  }
+}
+
+function openCell(i,d){
+  if(d.classList.contains('open'))return;
+  if(minesData[i]==='M'){
+    d.classList.add('mine');
+    d.textContent='✕';
+    return;
+  }
+  d.classList.add('open');
+  if(minesData[i]>0)d.textContent=minesData[i];
+}
+
+/* ===== TTT LOGIC ===== */
+let ttt;
+
+function startTTT(){
+  ttt=Array(9).fill('');
+  const g=document.getElementById('tttGrid');
+  g.innerHTML='';
+  for(let i=0;i<9;i++){
+    const c=document.createElement('div');
+    c.onclick=()=>{
+      if(ttt[i])return;
+      ttt[i]='X';
+      c.textContent='X';
+      ai();
+    };
+    g.appendChild(c);
+  }
+}
+
+function ai(){
+  let e=ttt.map((v,i)=>v==''?i:null).filter(v=>v!=null);
+  if(!e.length)return;
+  let m=e[Math.floor(Math.random()*e.length)];
+  ttt[m]='O';
+  document.getElementById('tttGrid').children[m].textContent='O';
+}
+</script>
+</body>
+</html>
