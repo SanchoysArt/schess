@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Шахматы с ИИ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- chessboard.css -->
+<link rel="stylesheet"
+ href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, Arial;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+}
+
+.screen.active {
+  display: flex;
+}
+
+h1 {
+  margin: 16px 0 24px;
+  font-size: 2.5em;
+  background: linear-gradient(45deg, #f0d9b5, #b58863);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+}
+
+.menu {
+  text-align: center;
+}
+
+.menu button, select {
+  font-size: 1.1em;
+  padding: 14px 28px;
+  margin: 10px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+}
+
+.menu button {
+  background: linear-gradient(45deg, #f0d9b5, #b58863);
+  color: #000;
+  min-width: 200px;
+}
+
+.menu button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+select {
+  background: #2c3e50;
+  color: white;
+  min-width: 220px;
+}
+
+#board-wrapper {
+  width: 92vw;
+  max-width: 500px;
+  margin: 0 auto;
+  background: #2c3e50;
+  padding: 15px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+#board {
+  width: 100%;
+}
+
+#status {
+  margin-top: 20px;
+  padding: 15px 25px;
+  background: #2c3e50;
+  border-radius: 10px;
+  font-size: 1.2em;
+  text-align: center;
+  min-width: 300px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.topbar {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.topbar button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  background: #34495e;
+  color: white;
+}
+
+.topbar button:hover {
+  background: #4a6572;
+  transform: translateY(-2px);
+}
+
+#controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+#controls button {
+  padding: 10px 20px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#controls button:hover {
+  background: #2980b9;
+}
+
+.info-panel {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  margin-top: 20px;
+  gap: 20px;
+}
+
+.info-box {
+  background: #2c3e50;
+  padding: 15px;
+  border-radius: 10px;
+  flex: 1;
+  text-align: center;
+}
+
+.info-label {
+  font-size: 0.9em;
+  color: #95a5a6;
+  margin-bottom: 5px;
+}
+
+.info-value {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #f0d9b5;
+}
+
+#move-history {
+  background: #2c3e50;
+  padding: 15px;
+  border-radius: 10px;
+  margin-top: 20px;
+  max-height: 200px;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.history-move {
+  padding: 5px 10px;
+  margin: 2px;
+  background: #34495e;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.turn-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.turn-white {
+  background: #f0d9b5;
+}
+
+.turn-black {
+  background: #b58863;
+}
+
+@media (max-width: 768px) {
+  #board-wrapper {
+    max-width: 400px;
+  }
+  
+  .info-panel {
+    flex-direction: column;
+  }
+  
+  h1 {
+    font-size: 2em;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- MENU -->
+<div id="menu" class="screen active menu">
+  <h1>♟ Шахматы с ИИ</h1>
+  
+  <div style="margin-bottom: 30px;">
+    <select id="difficulty">
+      <option value="1">👶 Лёгкий (новичок)</option>
+      <option value="2" selected>🧠 Средний (любитель)</option>
+      <option value="3">🔥 Сложный (продвинутый)</option>
+      <option value="4">🤖 Эксперт (мастер)</option>
+    </select>
+  </div>
+  
+  <div>
+    <select id="color">
+      <option value="white">⚪ Играть белыми</option>
+      <option value="black">⚫ Играть чёрными</option>
+      <option value="random">🎲 Случайный цвет</option>
+    </select>
+  </div>
+  
+  <div style="margin-top: 40px;">
+    <button onclick="startGame()">🎮 Начать игру</button>
+    <button onclick="showRules()">📖 Правила</button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <button onclick="backToMenu()">← Меню</button>
+    <button onclick="newGame()">🔄 Новая партия</button>
+    <button onclick="togglePause()">⏸️ Пауза</button>
+    <button onclick="undoMove()">↶ Отменить ход</button>
+  </div>
+
+  <div id="board-wrapper">
+    <div id="board"></div>
+  </div>
+
+  <div id="status"></div>
+  
+  <div class="info-panel">
+    <div class="info-box">
+      <div class="info-label">СЛОЖНОСТЬ</div>
+      <div class="info-value" id="difficulty-display">Средняя</div>
+    </div>
+    <div class="info-box">
+      <div class="info-label">ХОД</div>
+      <div class="info-value">
+        <span id="turn-display">Белые</span>
+        <span class="turn-indicator turn-white"></span>
+      </div>
+    </div>
+    <div class="info-box">
+      <div class="info-label">ХОДОВ</div>
+      <div class="info-value" id="move-count">0</div>
+    </div>
+  </div>
+  
+  <div id="move-history">
+    <div style="color: #95a5a6; margin-bottom: 10px;">История ходов:</div>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+<!-- RULES MODAL -->
+<div id="rules-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 1000;">
+  <div style="background: #2c3e50; padding: 30px; border-radius: 15px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+    <h2 style="color: #f0d9b5;">📖 Правила шахмат</h2>
+    <ul style="line-height: 1.6;">
+      <li><strong>Цель игры:</strong> Поставить мат королю противника.</li>
+      <li><strong>Ходы фигур:</strong>
+        <ul>
+          <li>♙ Пешка: на 1 клетку вперёд (первый ход можно на 2), бьёт по диагонали</li>
+          <li>♖ Ладья: по горизонтали и вертикали</li>
+          <li>♘ Конь: буквой "Г" (2+1 клетки)</li>
+          <li>♗ Слон: по диагонали</li>
+          <li>♕ Ферзь: в любом направлении</li>
+          <li>♔ Король: на 1 клетку в любом направлении</li>
+        </ul>
+      </li>
+      <li><strong>Специальные ходы:</strong> Рокировка, взятие на проходе, превращение пешки.</li>
+      <li><strong>Результат:</strong> Мат, пат, ничья по соглашению или из-за повторения позиции.</li>
+    </ul>
+    <button onclick="hideRules()" style="margin-top: 20px; padding: 10px 20px; background: #f0d9b5; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Закрыть</button>
+  </div>
+</div>
+
+<!-- LIBRARIES -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/chess.js@1.0.0/chess.min.js"></script>
+<script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+<script>
+let board = null;
+let game = null;
+let level = 2;
+let playerColor = 'white';
+let moveHistory = [];
+let isPaused = false;
+let gameState = 'active';
+
+const pieceValues = {
+  'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0
+};
+
+function startGame() {
+  level = +document.getElementById("difficulty").value;
+  const colorChoice = document.getElementById("color").value;
+  
+  if (colorChoice === 'random') {
+    playerColor = Math.random() > 0.5 ? 'white' : 'black';
+  } else {
+    playerColor = colorChoice;
+  }
+  
+  document.getElementById("menu").classList.remove("active");
+  document.getElementById("game").classList.add("active");
+  initGame();
+}
+
+function backToMenu() {
+  document.getElementById("game").classList.remove("active");
+  document.getElementById("menu").classList.add("active");
+  if (board) board.destroy();
+}
+
+function showRules() {
+  document.getElementById('rules-modal').style.display = 'flex';
+}
+
+function hideRules() {
+  document.getElementById('rules-modal').style.display = 'none';
+}
+
+function initGame() {
+  game = new Chess();
+  moveHistory = [];
+  
+  const difficultyNames = ['Лёгкий', 'Средний', 'Сложный', 'Эксперт'];
+  document.getElementById('difficulty-display').textContent = difficultyNames[level-1];
+  
+  const config = {
+    draggable: true,
+    position: 'start',
+    orientation: playerColor,
+    onDrop: onDrop,
+    onSnapEnd: () => board.position(game.fen())
+  };
+  
+  board = Chessboard('board', config);
+  
+  if (playerColor === 'black') {
+    setTimeout(makeAIMove, 500);
+  }
+  
+  updateStatus();
+  updateTurnDisplay();
+  updateMoveCount();
+  updateHistory();
+}
+
+function newGame() {
+  if (board) board.destroy();
+  initGame();
+  isPaused = false;
+  gameState = 'active';
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  document.querySelector('button[onclick="togglePause()"]').textContent = 
+    isPaused ? '▶️ Продолжить' : '⏸️ Пауза';
+  board.draggable = !isPaused;
+}
+
+function undoMove() {
+  if (moveHistory.length < 1) return;
+  
+  game.undo();
+  moveHistory.pop();
+  
+  if (moveHistory.length > 0) {
+    game.undo();
+    moveHistory.pop();
+  }
+  
+  board.position(game.fen());
+  updateStatus();
+  updateTurnDisplay();
+  updateMoveCount();
+  updateHistory();
+}
+
+function onDrop(source, target) {
+  if (isPaused || gameState !== 'active') return 'snapback';
+  
+  const move = game.move({
+    from: source,
+    to: target,
+    promotion: 'q'
+  });
+
+  if (move === null) return 'snapback';
+  
+  moveHistory.push(move);
+  updateStatus();
+  updateTurnDisplay();
+  updateMoveCount();
+  updateHistory();
+  
+  if (game.game_over()) {
+    gameState = 'finished';
+    return;
+  }
+  
+  setTimeout(makeAIMove, 300);
+}
+
+function evaluateBoard(position) {
+  let score = 0;
+  const board = position.board();
+  
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 8; j++) {
+      const square = board[i][j];
+      if (square) {
+        const value = pieceValues[square.type];
+        const multiplier = square.color === 'w' ? 1 : -1;
+        score += value * multiplier;
+        
+        // Бонус за центральные клетки для пешек и коней
+        if (square.type === 'p' || square.type === 'n') {
+          const centerDist = Math.abs(3.5 - j) + Math.abs(3.5 - i);
+          score += (14 - centerDist) * 0.01 * multiplier;
+        }
+      }
+    }
+  }
+  return score;
+}
+
+function minimax(position, depth, alpha, beta, maximizingPlayer) {
+  if (depth === 0 || position.game_over()) {
+    return evaluateBoard(position);
+  }
+  
+  const moves = position.moves({ verbose: true });
+  
+  if (maximizingPlayer) {
+    let maxEval = -Infinity;
+    for (const move of moves) {
+      position.move(move);
+      const evaluation = minimax(position, depth - 1, alpha, beta, false);
+      position.undo();
+      maxEval = Math.max(maxEval, evaluation);
+      alpha = Math.max(alpha, evaluation);
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    for (const move of moves) {
+      position.move(move);
+      const evaluation = minimax(position, depth - 1, alpha, beta, true);
+      position.undo();
+      minEval = Math.min(minEval, evaluation);
+      beta = Math.min(beta, evaluation);
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+function makeAIMove() {
+  if (isPaused || gameState !== 'active' || game.game_over()) return;
+  
+  const moves = game.moves({ verbose: true });
+  if (moves.length === 0) return;
+  
+  let bestMove = null;
+  let bestValue = playerColor === 'white' ? Infinity : -Infinity;
+  
+  // В зависимости от уровня сложности выбираем глубину поиска
+  const depths = [1, 2, 3, 4];
+  const searchDepth = depths[level - 1];
+  
+  for (const move of moves) {
+    game.move(move);
+    
+    let moveValue;
+    if (level === 1) {
+      // Лёгкий уровень: случайные ходы с базовой оценкой
+      moveValue = Math.random() * 100 + evaluateBoard(game);
+    } else {
+      // Более сложные уровни: минимакс с альфа-бета отсечением
+      moveValue = minimax(game, searchDepth - 1, -Infinity, Infinity, playerColor === 'white');
+    }
+    
+    game.undo();
+    
+    if (playerColor === 'white') {
+      if (moveValue < bestValue) {
+        bestValue = moveValue;
+        bestMove = move;
+      }
+    } else {
+      if (moveValue > bestValue) {
+        bestValue = moveValue;
+        bestMove = move;
+      }
+    }
+  }
+  
+  // Иногда делаем субоптимальные ходы на лёгких уровнях
+  if (level === 1 && Math.random() < 0.3) {
+    bestMove = moves[Math.floor(Math.random() * moves.length)];
+  }
+  
+  if (bestMove) {
+    game.move(bestMove);
+    moveHistory.push(bestMove);
+    board.position(game.fen());
+    updateStatus();
+    updateTurnDisplay();
+    updateMoveCount();
+    updateHistory();
+    
+    if (game.game_over()) {
+      gameState = 'finished';
+    }
+  }
+}
+
+function updateStatus() {
+  let text = '';
+  
+  if (game.in_checkmate()) {
+    text = `🎉 Мат! ${game.turn() === 'w' ? 'Чёрные' : 'Белые'} победили!`;
+  } else if (game.in_draw()) {
+    text = '🤝 Ничья!';
+  } else if (game.in_stalemate()) {
+    text = '🤝 Пат!';
+  } else if (game.in_threefold_repetition()) {
+    text = '🤝 Ничья из-за троекратного повторения!';
+  } else if (game.insufficient_material()) {
+    text = '🤝 Ничья из-за недостатка материала!';
+  } else {
+    text = game.turn() === 'w' ? 'Ход белых' : 'Ход чёрных';
+    if (game.in_check()) text += ' — ШАХ!';
+  }
+  
+  document.getElementById('status').textContent = text;
+}
+
+function updateTurnDisplay() {
+  const turn = game.turn() === 'w' ? 'Белые' : 'Чёрные';
+  document.getElementById('turn-display').textContent = turn;
+  
+  const indicator = document.querySelector('.turn-indicator');
+  indicator.className = 'turn-indicator ' + (game.turn() === 'w' ? 'turn-white' : 'turn-black');
+}
+
+function updateMoveCount() {
+  document.getElementById('move-count').textContent = Math.ceil(moveHistory.length / 2);
+}
+
+function updateHistory() {
+  const historyList = document.getElementById('history-list');
+  historyList.innerHTML = '';
+  
+  for (let i = 0; i < moveHistory.length; i += 2) {
+    const moveNumber = Math.floor(i / 2) + 1;
+    const whiteMove = moveHistory[i] ? moveHistory[i].san : '';
+    const blackMove = moveHistory[i + 1] ? moveHistory[i + 1].san : '';
+    
+    const moveElement = document.createElement('div');
+    moveElement.innerHTML = `
+      <span style="color: #95a5a6; margin-right: 10px;">${moveNumber}.</span>
+      <span class="history-move" style="background: #f0d9b5; color: #000">${whiteMove}</span>
+      <span class="history-move" style="background: #b58863; color: #000">${blackMove}</span>
+    `;
+    historyList.appendChild(moveElement);
+  }
+  
+  // Прокрутка вниз
+  historyList.scrollTop = historyList.scrollHeight;
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+  // Автоматически настраиваем размер доски
+  function resizeBoard() {
+    const width = Math.min(window.innerWidth - 40, 500);
+    if (board) {
+      board.resize();
+    }
+  }
+  
+  window.addEventListener('resize', resizeBoard);
+  resizeBoard();
+});
+</script>
+
+</body>
+</html>
