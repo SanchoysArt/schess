@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Glass Games</title>
+<style>
+:root {
+  --bg: #000;
+  --fg: #fff;
+  --glass: rgba(255,255,255,0.08);
+  --blur: blur(14px);
+}
+
+* {
+  box-sizing: border-box;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #111, #000);
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulseBg 6s ease-in-out infinite alternate;
+}
+
+@keyframes pulseBg {
+  from { filter: brightness(0.9); }
+  to { filter: brightness(1.1); }
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 0 40px rgba(255,255,255,0.08);
+}
+
+.container {
+  width: 90%;
+  max-width: 800px;
+  padding: 30px;
+  text-align: center;
+}
+
+h1 {
+  font-weight: 300;
+  letter-spacing: 4px;
+  margin-bottom: 20px;
+  animation: glow 3s infinite alternate;
+}
+
+@keyframes glow {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+
+.menu button {
+  margin: 10px;
+  padding: 12px 24px;
+  background: transparent;
+  color: white;
+  border: 1px solid white;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.4s;
+}
+
+.menu button:hover {
+  background: white;
+  color: black;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Minesweeper */
+.grid {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.cell {
+  width: 34px;
+  height: 34px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cell.open {
+  background: rgba(255,255,255,0.85);
+  color: black;
+}
+
+.cell.mine {
+  background: white;
+}
+
+/* Tic Tac Toe */
+.ttt {
+  display: grid;
+  grid-template-columns: repeat(3, 100px);
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.ttt div {
+  height: 100px;
+  font-size: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: 0.4s;
+}
+
+.ttt div:hover {
+  background: rgba(255,255,255,0.2);
+}
+</style>
+</head>
+<body>
+
+<div class="container glass">
+  <h1>GLASS GAMES</h1>
+
+  <div class="menu">
+    <button onclick="showGame('mines')">Сапёр</button>
+    <button onclick="showGame('ttt')">Крестики-нолики</button>
+  </div>
+
+  <!-- MINES -->
+  <div id="mines" class="hidden">
+    <h2>САПЁР</h2>
+    <div class="menu">
+      <button onclick="startMines(8,10)">Лёгкий</button>
+      <button onclick="startMines(10,20)">Средний</button>
+      <button onclick="startMines(14,40)">Сложный</button>
+    </div>
+    <div id="minefield" class="grid"></div>
+  </div>
+
+  <!-- TTT -->
+  <div id="ttt" class="hidden">
+    <h2>КРЕСТИКИ-НОЛИКИ</h2>
+    <div class="menu">
+      <button onclick="startTTT()">Начать</button>
+    </div>
+    <div class="ttt" id="tttGrid"></div>
+  </div>
+</div>
+
+<script>
+function showGame(id) {
+  document.querySelectorAll('#mines,#ttt').forEach(e => e.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+/* Minesweeper */
+function startMines(size, mines) {
+  const field = document.getElementById('minefield');
+  field.innerHTML = '';
+  field.style.gridTemplateColumns = `repeat(${size}, 34px)`;
+
+  let cells = [];
+  for (let i = 0; i < size*size; i++) {
+    cells.push({ mine: false, open: false });
+  }
+
+  for (let i = 0; i < mines; i++) {
+    let r;
+    do { r = Math.floor(Math.random() * cells.length); }
+    while (cells[r].mine);
+    cells[r].mine = true;
+  }
+
+  cells.forEach((cell, i) => {
+    const d = document.createElement('div');
+    d.className = 'cell';
+    d.onclick = () => {
+      if (cell.mine) {
+        d.classList.add('mine');
+        d.innerText = '✕';
+      } else {
+        d.classList.add('open');
+      }
+    };
+    field.appendChild(d);
+  });
+}
+
+/* Tic Tac Toe */
+let tttState;
+function startTTT() {
+  const g = document.getElementById('tttGrid');
+  g.innerHTML = '';
+  tttState = Array(9).fill('');
+
+  for (let i = 0; i < 9; i++) {
+    const c = document.createElement('div');
+    c.onclick = () => {
+      if (!tttState[i]) {
+        tttState[i] = 'X';
+        c.innerText = 'X';
+        aiMove();
+      }
+    };
+    g.appendChild(c);
+  }
+}
+
+function aiMove() {
+  let empty = tttState.map((v,i)=>v==''?i:null).filter(v=>v!==null);
+  if (!empty.length) return;
+  let move = empty[Math.floor(Math.random()*empty.length)];
+  tttState[move] = 'O';
+  document.getElementById('tttGrid').children[move].innerText = 'O';
+}
+</script>
+
+</body>
+</html>
