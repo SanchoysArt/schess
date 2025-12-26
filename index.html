@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Полноценные шахматы</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Chessboard styles -->
+<link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+
+<style>
+body {
+  margin: 0;
+  font-family: system-ui, Arial;
+  background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+}
+
+.screen.active {
+  display: flex;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+.menu button, select {
+  padding: 12px 20px;
+  margin: 8px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.menu button {
+  background: #f0d9b5;
+  color: #000;
+}
+
+#board {
+  width: min(90vw, 400px);
+}
+
+#status {
+  margin-top: 10px;
+  min-height: 24px;
+}
+
+.topbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- MAIN MENU -->
+<div id="menu" class="screen active menu">
+  <h1>♟ Полноценные шахматы</h1>
+
+  <select id="difficulty">
+    <option value="1">Лёгкий</option>
+    <option value="2">Средний</option>
+    <option value="3">Сложный</option>
+  </select>
+
+  <button onclick="startGame()">Играть</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <button onclick="backToMenu()">← Меню</button>
+    <button onclick="newGame()">Новая партия</button>
+  </div>
+
+  <div id="board"></div>
+  <div id="status"></div>
+</div>
+
+<!-- Libraries -->
+<script src="https://unpkg.com/chess.js@1.0.0/chess.min.js"></script>
+<script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+
+<script>
+let board = null;
+let game = null;
+let level = 1;
+
+function startGame() {
+  level = +document.getElementById("difficulty").value;
+  document.getElementById("menu").classList.remove("active");
+  document.getElementById("game").classList.add("active");
+  initGame();
+}
+
+function backToMenu() {
+  document.getElementById("game").classList.remove("active");
+  document.getElementById("menu").classList.add("active");
+}
+
+function initGame() {
+  game = new Chess();
+
+  board = Chessboard('board', {
+    draggable: true,
+    position: 'start',
+    onDrop: onDrop,
+    onSnapEnd: () => board.position(game.fen())
+  });
+
+  updateStatus();
+}
+
+function newGame() {
+  game.reset();
+  board.start();
+  updateStatus();
+}
+
+function onDrop(source, target) {
+  const move = game.move({
+    from: source,
+    to: target,
+    promotion: 'q'
+  });
+
+  if (move === null) return 'snapback';
+
+  updateStatus();
+  window.setTimeout(makeAIMove, 200);
+}
+
+function makeAIMove() {
+  if (game.game_over()) return;
+
+  const moves = game.moves({ verbose: true });
+  let bestMove = null;
+
+  if (level === 1) {
+    bestMove = moves[Math.floor(Math.random() * moves.length)];
+  } else {
+    bestMove = moves.sort(() => 0.5 - Math.random())[0];
+  }
+
+  game.move(bestMove);
+  board.position(game.fen());
+  updateStatus();
+}
+
+function updateStatus() {
+  let status = '';
+
+  if (game.in_checkmate()) {
+    status = '♚ Мат! ' + (game.turn() === 'w' ? 'Чёрные' : 'Белые') + ' победили';
+  } else if (game.in_draw()) {
+    status = '🤝 Ничья';
+  } else {
+    status = (game.turn() === 'w' ? 'Ваш ход' : 'Ход ИИ');
+    if (game.in_check()) status += ' — ШАХ!';
+  }
+
+  document.getElementById('status').textContent = status;
+}
+</script>
+
+</body>
+</html>
