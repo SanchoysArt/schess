@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Hand Draw Persistent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #0e0e10;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+}
+
+#container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+video, canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+video {
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+/* ===== Menu Button ===== */
+#menuButton {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.14);
+  backdrop-filter: blur(12px);
+  color: white;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+  z-index: 10;
+}
+#menuButton:hover {
+  background: rgba(255,255,255,0.22);
+}
+
+/* ===== Menu ===== */
+#menu {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.14);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  color: white;
+  min-width: 200px;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: 0.3s ease;
+  z-index: 10;
+}
+#menu.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.menu-group {
+  margin-bottom: 12px;
+}
+label {
+  font-size: 12px;
+  opacity: 0.8;
+}
+input {
+  width: 100%;
+  margin-top: 6px;
+}
+</style>
+</head>
+
+<body>
+<div id="container">
+  <video id="video" autoplay playsinline></video>
+
+  <!-- Перманентное рисование -->
+  <canvas id="drawCanvas"></canvas>
+
+  <!-- UI / трекинг -->
+  <canvas id="uiCanvas"></canvas>
+
+  <div id="menuButton">⚙️ Меню</div>
+
+  <div id="menu">
+    <div class="menu-group">
+      <label>Цвет</label>
+      <input type="color" id="color" value="#ffffff">
+    </div>
+    <div class="menu-group">
+      <label>Толщина</label>
+      <input type="range" id="thickness" min="2" max="20" value="6">
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Elements ===== */
+const video = document.getElementById('video');
+const drawCanvas = document.getElementById('drawCanvas');
+const uiCanvas = document.getElementById('uiCanvas');
+
+const drawCtx = drawCanvas.getContext('2d');
+const uiCtx = uiCanvas.getContext('2d');
+
+const menuButton = document.getElementById('menuButton');
+const menu = document.getElementById('menu');
+const colorInput = document.getElementById('color');
+const thicknessInput = document.getElementById('thickness');
+
+/* ===== State ===== */
+let drawColor = colorInput.value;
+let drawThickness = thicknessInput.value;
+
+let lastPoint = null;
+let smoothPoint = null;
+
+const PINCH_DISTANCE = 0.035;
+const SMOOTHING = 0.25;
+
+/* ===== Resize ===== */
+function resize() {
+  [drawCanvas, uiCanvas].forEach(c => {
+    c.width = innerWidth;
+    c.height = innerHeight;
+  });
+}
+addEventListener('resize', resize);
+resize();
+
+/* ===== Utils ===== */
+const lerp = (a,b,t)=>a+(b-a)*t;
+const dist = (a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const toScreen = p => ({
+  x:(1-p.x)*drawCanvas.width,
+  y:p.y*drawCanvas.height
+});
+
+/* ===== MediaPipe ===== */
+const hands = new Hands({
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.8,
+  minTrackingConfidence: 0.8
+});
+
+hands.onResults(onResults);
+
+const camera = new Camera(video, {
+  onFrame: async () => hands.send({ image: video }),
+  width: 1280,
+  height: 720
+});
+camera.start();
+
+/* ===== Main ===== */
+function onResults(res) {
+  uiCtx.clearRect(0,0,uiCanvas.width,uiCanvas.height);
+
+  if (!res.multiHandLandmarks?.length) {
+    lastPoint = null;
+    smoothPoint = null;
+    return;
+  }
+
+  const lm = res.multiHandLandmarks[0];
+  const thumb = lm[4];
+  const index = lm[8];
+
+  const d = dist(thumb, index);
+  const pinch = d < PINCH_DISTANCE;
+
+  const a = toScreen(thumb);
+  const b = toScreen(index);
+  const mid = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+
+  if (!smoothPoint) smoothPoint = mid;
+  smoothPoint.x = lerp(smoothPoint.x, mid.x, SMOOTHING);
+  smoothPoint.y = lerp(smoothPoint.y, mid.y, SMOOTHING);
+
+  drawGuides(a, b, smoothPoint);
+
+  if (pinch) {
+    if (lastPoint) {
+      drawCtx.strokeStyle = drawColor;
+      drawCtx.lineWidth = drawThickness;
+      drawCtx.lineCap = 'round';
+      drawCtx.beginPath();
+      drawCtx.moveTo(lastPoint.x, lastPoint.y);
+      drawCtx.lineTo(smoothPoint.x, smoothPoint.y);
+      drawCtx.stroke();
+    }
+    lastPoint = { ...smoothPoint };
+  } else {
+    lastPoint = null;
+  }
+}
+
+/* ===== Visual UI ===== */
+function drawGuides(a, b, p) {
+  const m = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+  uiCtx.strokeStyle = 'rgba(255,255,255,0.25)';
+  uiCtx.lineWidth = 8;
+  uiCtx.lineCap = 'round';
+
+  uiCtx.beginPath(); uiCtx.moveTo(a.x,a.y); uiCtx.lineTo(m.x,m.y); uiCtx.stroke();
+  uiCtx.beginPath(); uiCtx.moveTo(b.x,b.y); uiCtx.lineTo(m.x,m.y); uiCtx.stroke();
+
+  uiCtx.fillStyle = 'rgba(255,255,255,0.6)';
+  uiCtx.beginPath();
+  uiCtx.arc(p.x,p.y,6,0,Math.PI*2);
+  uiCtx.fill();
+}
+
+/* ===== UI ===== */
+menuButton.onclick = () => menu.classList.toggle('open');
+colorInput.oninput = e => drawColor = e.target.value;
+thicknessInput.oninput = e => drawThickness = e.target.value;
+</script>
+</body>
+</html>
