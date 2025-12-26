@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Шахматы PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin:0;
+  background:#111;
+  color:#fff;
+  font-family:system-ui, Arial;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+h1 { margin:10px; font-size:20px }
+#ui {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  justify-content:center;
+}
+select,button {
+  padding:8px;
+  font-size:16px;
+}
+#board {
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  width:95vmin;
+  max-width:420px;
+  aspect-ratio:1;
+  margin:10px;
+}
+.cell {
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-size:clamp(28px,7vw,48px);
+  user-select:none;
+}
+.w { background:#f0d9b5; color:#000 }
+.b { background:#b58863 }
+.sel { outline:3px solid red }
+.move { box-shadow: inset 0 0 0 4px rgba(0,255,0,.6) }
+.capture { box-shadow: inset 0 0 0 4px rgba(255,0,0,.6) }
+#status { min-height:24px; margin-bottom:6px }
+</style>
+</head>
+<body>
+
+<h1>♟ Шахматы PRO</h1>
+
+<div id="ui">
+<select id="difficulty">
+  <option value="1">Лёгкий</option>
+  <option value="2">Средний</option>
+  <option value="3">Сложный</option>
+</select>
+<button onclick="newGame()">Новая</button>
+<button onclick="undo()">↩</button>
+</div>
+
+<div id="board"></div>
+<div id="status"></div>
+
+<script>
+// ===== ДАННЫЕ =====
+const PIECES={r:"♜",n:"♞",b:"♝",q:"♛",k:"♚",p:"♟",R:"♖",N:"♘",B:"♗",Q:"♕",K:"♔",P:"♙"};
+const VAL={p:100,n:320,b:330,r:500,q:900,k:20000};
+
+// позиционные таблицы (упрощённые)
+const PST={
+ p:[0,5,5,0,5,10,50,0],
+ n:[-50,-40,-30,-30,-30,-30,-40,-50],
+ b:[-20,-10,-10,-10,-10,-10,-10,-20],
+ r:[0,0,5,10,10,5,0,0],
+ q:[-20,-10,-10,-5,-5,-10,-10,-20],
+ k:[-30,-40,-40,-50,-50,-40,-40,-30]
+};
+
+let board,turn,sel,moves,history,enPassant,castling;
+
+// ===== ИГРА =====
+function newGame(){
+ board=[
+ "rnbqkbnr",
+ "pppppppp",
+ "........",
+ "........",
+ "........",
+ "........",
+ "PPPPPPPP",
+ "RNBQKBNR"];
+ turn="w";
+ sel=null; moves=[]; history=[];
+ enPassant=null;
+ castling={K:true,Q:true,k:true,q:true};
+ draw();
+ setStatus("Ваш ход");
+}
+
+const bd=document.getElementById("board");
+
+function draw(){
+ bd.innerHTML="";
+ for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+  const d=document.createElement("div");
+  d.className="cell "+((x+y)%2?"b":"w");
+  d.textContent=PIECES[board[y][x]]||"";
+  d.onclick=()=>click(x,y);
+  if(sel&&sel.x==x&&sel.y==y)d.classList.add("sel");
+  moves.forEach(m=>{
+    if(m.x==x&&m.y==y)
+      d.classList.add(board[y][x]=="."?"move":"capture");
+  });
+  bd.appendChild(d);
+ }
+}
+
+function click(x,y){
+ if(turn!="w")return;
+ const p=board[y][x];
+ if(sel){
+  if(moves.some(m=>m.x==x&&m.y==y)){
+    makeMove(sel.x,sel.y,x,y);
+    sel=null; moves=[];
+    draw(); setTimeout(aiMove,150);
+    return;
+  }
+  sel=null; moves=[];
+ }
+ if(p.match(/[A-Z]/)){
+  sel={x,y};
+  moves=getMoves(board,x,y,true);
+ }
+ draw();
+}
+
+// ===== ЛОГИКА =====
+const clone=b=>b.map(r=>r.split(""));
+const opp=w=>w?/[a-z]/:/[A-Z]/;
+
+function makeMove(x1,y1,x2,y2){
+ history.push({board:board.slice(),turn});
+ let b=clone(board);
+ let p=b[y1][x1];
+ b[y2][x2]=p; b[y1][x1]=".";
+ if(p=="P"&&y2==0)b[y2][x2]="Q";
+ if(p=="p"&&y2==7)b[y2][x2]="q";
+ board=b.map(r=>r.join(""));
+ turn=turn=="w"?"b":"w";
+ checkEnd();
+}
+
+function getMoves(b,x,y,white){
+ let p=b[y][x],r=[];
+ const dir=white?-1:1;
+ const add=(nx,ny)=>{
+  if(nx<0||ny<0||nx>7||ny>7)return;
+  if(b[ny][nx]=="."||b[ny][nx].match(opp(white)))r.push({x:nx,y:ny});
+ };
+ if(p.toLowerCase()=="p"){
+  if(b[y+dir]?.[x]==".")add(x,y+dir);
+  [[-1,dir],[1,dir]].forEach(d=>{
+   if(b[y+d[1]]?.[x+d[0]]?.match(opp(white)))
+    add(x+d[0],y+d[1]);
+  });
+ }
+ if("rbq".includes(p.toLowerCase())){
+  [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+  .forEach(d=>{
+   if(p.toLowerCase()=="r"&&d[0]&&d[1])return;
+   if(p.toLowerCase()=="b"&&(!d[0]||!d[1]))return;
+   for(let i=1;i<8;i++){
+    let nx=x+d[0]*i,ny=y+d[1]*i;
+    if(nx<0||ny<0||nx>7||ny>7)break;
+    if(b[ny][nx]==".")r.push({x:nx,y:ny});
+    else{ if(b[ny][nx].match(opp(white)))r.push({x:nx,y:ny}); break;}
+   }
+  });
+ }
+ if(p.toLowerCase()=="n"){
+  [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]
+  .forEach(d=>add(x+d[0],y+d[1]));
+ }
+ if(p.toLowerCase()=="k"){
+  for(let dx=-1;dx<=1;dx++)
+   for(let dy=-1;dy<=1;dy++)
+    if(dx||dy)add(x+dx,y+dy);
+ }
+ return r;
+}
+
+// ===== ИИ =====
+function evaluate(b){
+ let s=0;
+ for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+  let c=b[y][x];
+  if(c!="."){
+   let v=VAL[c.toLowerCase()];
+   let pst=PST[c.toLowerCase()]?.[c==c.toUpperCase()?y:7-y]||0;
+   s+=(c==c.toUpperCase()?1:-1)*(v+pst);
+  }
+ }
+ return s;
+}
+
+function minimax(b,d,a,beta,max){
+ if(d==0)return evaluate(b);
+ let best=max?-1e9:1e9;
+ for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+  let p=b[y][x];
+  if(p=="."||p.match(max?/[A-Z]/:/[a-z]/))continue;
+  getMoves(b,x,y,!max).forEach(m=>{
+   let nb=clone(b);
+   nb[m.y][m.x]=nb[y][x]; nb[y][x]=".";
+   let v=minimax(nb.map(r=>r.join("")),d-1,a,beta,!max);
+   best=max?Math.max(best,v):Math.min(best,v);
+   max?a=Math.max(a,v):beta=Math.min(beta,v);
+  });
+ }
+ return best;
+}
+
+function aiMove(){
+ let depth=+difficulty.value+1;
+ let best=-1e9, bm=null;
+ for(let y=0;y<8;y++)for(let x=0;x<8;x++){
+  if(!board[y][x].match(/[a-z]/))continue;
+  getMoves(board,x,y,false).forEach(m=>{
+   let nb=clone(board);
+   nb[m.y][m.x]=nb[y][x]; nb[y][x]=".";
+   let v=minimax(nb.map(r=>r.join("")),depth-1,-1e9,1e9,false);
+   if(v>best){best=v;bm={x,y,m};}
+  });
+ }
+ if(bm)makeMove(bm.x,bm.y,bm.m.x,bm.m.y);
+ draw();
+}
+
+// ===== КОНЕЦ =====
+function checkEnd(){setStatus(turn=="w"?"Ваш ход":"Ход ИИ");}
+function undo(){ if(!history.length)return; let h=history.pop(); board=h.board; turn=h.turn; draw(); }
+function setStatus(t){document.getElementById("status").textContent=t;}
+
+newGame();
+</script>
+</body>
+</html>
