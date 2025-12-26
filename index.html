@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>✨ My AI Translator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+:root {
+  --glow: linear-gradient(135deg,#00f5ff,#7c7cff,#ff5cf7);
+}
+body {
+  margin:0;
+  font-family: 'Segoe UI', system-ui;
+  background: radial-gradient(circle at top, #1a1a3d, #050510);
+  color:white;
+  overflow-x:hidden;
+}
+
+.glow-bg {
+  position:fixed;
+  inset:-50%;
+  background: var(--glow);
+  filter: blur(120px);
+  opacity:.35;
+  animation: move 20s linear infinite;
+}
+@keyframes move {
+  0%{transform:translate(0,0)}
+  50%{transform:translate(20%,30%)}
+  100%{transform:translate(0,0)}
+}
+
+.app {
+  position:relative;
+  max-width:1100px;
+  margin:auto;
+  padding:30px;
+}
+
+.card {
+  background:rgba(255,255,255,.08);
+  backdrop-filter: blur(20px);
+  border-radius:20px;
+  padding:20px;
+  box-shadow:0 0 40px rgba(0,0,0,.4);
+  margin-bottom:20px;
+  animation: fadeUp .8s ease;
+}
+@keyframes fadeUp {
+  from{opacity:0; transform:translateY(20px)}
+  to{opacity:1; transform:none}
+}
+
+h1 {
+  text-align:center;
+  background:var(--glow);
+  -webkit-background-clip:text;
+  color:transparent;
+}
+
+select, textarea, button {
+  width:100%;
+  margin-top:10px;
+  padding:12px;
+  border-radius:12px;
+  border:none;
+  font-size:16px;
+}
+
+textarea {
+  min-height:120px;
+  resize:vertical;
+}
+
+button {
+  background:var(--glow);
+  color:black;
+  font-weight:600;
+  cursor:pointer;
+  transition:.3s;
+}
+button:hover {
+  transform:scale(1.03);
+}
+
+.row {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+
+img {
+  max-width:100%;
+  border-radius:12px;
+}
+
+.overlay {
+  position:relative;
+}
+.overlay-text {
+  position:absolute;
+  inset:0;
+  color:#00f5ff;
+  font-weight:700;
+  pointer-events:none;
+  white-space:pre-wrap;
+}
+</style>
+</head>
+
+<body>
+<div class="glow-bg"></div>
+
+<div class="app">
+<h1>✨ AI Переводчик</h1>
+
+<div class="card">
+<h3>🌐 Текстовый перевод</h3>
+<select id="targetLang">
+<option value="en">English</option>
+<option value="ru">Русский</option>
+<option value="de">Deutsch</option>
+<option value="fr">Français</option>
+<option value="es">Español</option>
+<option value="it">Italiano</option>
+<option value="zh">中文</option>
+<option value="ja">日本語</option>
+<option value="ko">한국어</option>
+<option value="ar">العربية</option>
+<option value="pt">Português</option>
+<option value="tr">Türkçe</option>
+<option value="uk">Українська</option>
+<option value="pl">Polski</option>
+<option value="nl">Nederlands</option>
+<option value="sv">Svenska</option>
+<option value="fi">Suomi</option>
+<option value="cs">Čeština</option>
+<option value="hi">हिन्दी</option>
+<option value="bn">বাংলা</option>
+</select>
+
+<textarea id="inputText" placeholder="Введите текст или используйте голос..."></textarea>
+
+<button onclick="voice()">🎤 Голосовой ввод</button>
+<button onclick="translate()">🔁 Перевести</button>
+
+<textarea id="outputText" placeholder="Перевод"></textarea>
+</div>
+
+<div class="card">
+<h3>📸 Перевод по фото</h3>
+<input type="file" accept="image/*" onchange="loadImage(event)">
+<div class="row">
+<div class="overlay">
+<img id="photo">
+<div id="overlayText" class="overlay-text"></div>
+</div>
+<div>
+<button onclick="ocr()">🔍 Распознать текст</button>
+<button onclick="translateOCR()">🌍 Перевести текст</button>
+<textarea id="ocrText"></textarea>
+</div>
+</div>
+</div>
+
+</div>
+
+<script>
+const api = "https://libretranslate.de";
+
+async function translate(text = inputText.value, target = targetLang.value, out = outputText) {
+  if(!text) return;
+  const res = await fetch(api+"/translate", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      q:text,
+      source:"auto",
+      target:target,
+      format:"text"
+    })
+  });
+  const data = await res.json();
+  out.value = data.translatedText;
+}
+
+function voice(){
+  const rec = new webkitSpeechRecognition();
+  rec.lang="auto";
+  rec.onresult=e=>inputText.value=e.results[0][0].transcript;
+  rec.start();
+}
+
+function loadImage(e){
+  photo.src = URL.createObjectURL(e.target.files[0]);
+}
+
+async function ocr(){
+  overlayText.innerText="⏳ Распознаю...";
+  const res = await Tesseract.recognize(photo.src,"eng+rus+deu+fra+spa");
+  ocrText.value = res.data.text;
+  overlayText.innerText = res.data.text;
+}
+
+async function translateOCR(){
+  await translate(ocrText.value, targetLang.value, overlayText);
+}
+</script>
+</body>
+</html>
