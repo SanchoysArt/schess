@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Arcade</title>
+
+<style>
+:root {
+  --glass: rgba(255,255,255,.08);
+  --white: #fff;
+}
+
+* { box-sizing: border-box; font-family: system-ui, sans-serif; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle, #111, #000);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+  padding: 16px;
+  width: 96%;
+  max-width: 420px;
+  border: 1px solid rgba(255,255,255,.15);
+}
+
+h1 { text-align: center; font-weight: 300; letter-spacing: 4px; }
+
+.menu {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+button {
+  flex: 1;
+  min-width: 100px;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid white;
+  border-radius: 12px;
+  color: white;
+}
+
+.hidden { display: none; }
+
+/* ===== MODAL ===== */
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  display: none;
+  justify-content: center;
+  align-items: center;
+}
+
+#overlay.active { display: flex; }
+
+#overlay .modal {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  padding: 24px;
+  border-radius: 20px;
+  text-align: center;
+}
+
+/* ===== MINES ===== */
+.grid {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+}
+
+.cell {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.cell.open { background: white; color: black; }
+.cell.mine { background: white; }
+
+/* ===== TTT ===== */
+.ttt {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.ttt div {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  background: rgba(255,255,255,.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+}
+
+.win { background: white !important; color: black; }
+</style>
+</head>
+
+<body>
+<div class="glass">
+  <h1>GLASS ARCADE</h1>
+
+  <div class="menu">
+    <button onclick="show('mines')">Сапёр</button>
+    <button onclick="show('ttt')">Крестики</button>
+  </div>
+
+<!-- ===== MINES ===== -->
+<div id="mines" class="hidden">
+  <p>Открой все клетки без мин</p>
+  <div class="menu">
+    <button onclick="startMines(8,10)">Лёгкий</button>
+    <button onclick="startMines(10,20)">Средний</button>
+    <button onclick="startMines(12,35)">Сложный</button>
+  </div>
+  <div id="field" class="grid"></div>
+</div>
+
+<!-- ===== TTT ===== -->
+<div id="ttt" class="hidden">
+  <p>Собери линию из 3 ❌</p>
+  <div class="menu">
+    <button onclick="setDiff(0)">Лёгкий</button>
+    <button onclick="setDiff(1)">Средний</button>
+    <button onclick="setDiff(2)">Сложный</button>
+  </div>
+  <button onclick="startTTT()">Начать</button>
+  <div id="tttGrid" class="ttt"></div>
+</div>
+</div>
+
+<div id="overlay">
+  <div class="modal">
+    <h2 id="result"></h2>
+    <button onclick="closeModal()">OK</button>
+  </div>
+</div>
+
+<script>
+/* ===== UI ===== */
+function show(id){
+  document.querySelectorAll('#mines,#ttt').forEach(e=>e.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+}
+
+function showModal(t){
+  result.textContent=t;
+  overlay.classList.add('active');
+}
+function closeModal(){ overlay.classList.remove('active'); }
+
+/* ===== MINES ===== */
+let mines,size,opened,over;
+
+function startMines(s,m){
+  size=s; opened=0; over=false;
+  field.innerHTML='';
+  field.style.gridTemplateColumns=`repeat(${s},32px)`;
+  mines=Array(s*s).fill(0);
+
+  while(m){
+    let i=Math.random()*mines.length|0;
+    if(mines[i]!=='M'){mines[i]='M';m--;}
+  }
+
+  for(let i=0;i<mines.length;i++){
+    if(mines[i]==='M')continue;
+    let n=0;
+    for(let dx=-1;dx<=1;dx++)
+    for(let dy=-1;dy<=1;dy++){
+      let x=i%size+dx,y=(i/size|0)+dy;
+      let j=y*size+x;
+      if(x>=0&&y>=0&&x<size&&y<size&&mines[j]==='M')n++;
+    }
+    mines[i]=n;
+  }
+
+  for(let i=0;i<mines.length;i++){
+    let d=document.createElement('div');
+    d.className='cell';
+    d.onclick=()=>openCell(i,d);
+    field.appendChild(d);
+  }
+}
+
+function openCell(i,d){
+  if(over||d.classList.contains('open'))return;
+  if(mines[i]==='M'){
+    d.classList.add('mine');
+    over=true;
+    showModal('Поражение');
+    return;
+  }
+  d.classList.add('open');
+  opened++;
+  if(mines[i]) d.textContent=mines[i];
+  else flood(i);
+
+  if(opened===mines.filter(v=>v!=='M').length){
+    over=true;
+    showModal('Победа');
+  }
+}
+
+function flood(i){
+  for(let dx=-1;dx<=1;dx++)
+  for(let dy=-1;dy<=1;dy++){
+    let x=i%size+dx,y=(i/size|0)+dy;
+    let j=y*size+x;
+    if(x>=0&&y>=0&&x<size&&y<size){
+      let c=field.children[j];
+      if(!c.classList.contains('open')) openCell(j,c);
+    }
+  }
+}
+
+/* ===== TTT ===== */
+let board,active=true,diff=0;
+const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+function setDiff(d){ diff=d; }
+
+function startTTT(){
+  board=Array(9).fill('');
+  active=true;
+  tttGrid.innerHTML='';
+  for(let i=0;i<9;i++){
+    let c=document.createElement('div');
+    c.onclick=()=>move(i,c);
+    tttGrid.appendChild(c);
+  }
+}
+
+function move(i,c){
+  if(!active||board[i])return;
+  board[i]='X'; c.textContent='X';
+  if(check('X')) return end('Победа');
+  if(board.every(v=>v)) return end('Ничья');
+  aiMove();
+}
+
+function aiMove(){
+  let m;
+  if(diff===0) m=randomMove();
+  else if(diff===1) m=smartMove();
+  else m=minimaxMove();
+  board[m]='O';
+  tttGrid.children[m].textContent='O';
+  if(check('O')) end('Поражение');
+}
+
+function randomMove(){
+  let e=board.map((v,i)=>v==''?i:null).filter(v=>v!=null);
+  return e[Math.random()*e.length|0];
+}
+
+function smartMove(){
+  for(let w of wins)
+    for(let p of ['O','X']){
+      let c=w.filter(i=>board[i]==p).length;
+      let e=w.find(i=>board[i]=='');
+      if(c==2&&e!=undefined) return e;
+    }
+  return randomMove();
+}
+
+function minimaxMove(){
+  return minimax(board,'O').i;
+}
+
+function minimax(b,p){
+  if(checkState(b,'X')) return {s:-1};
+  if(checkState(b,'O')) return {s:1};
+  if(b.every(v=>v)) return {s:0};
+
+  let best={s:p==='O'?-2:2};
+  for(let i=0;i<9;i++){
+    if(!b[i]){
+      b[i]=p;
+      let r=minimax(b,p==='O'?'X':'O');
+      b[i]='';
+      r.i=i;
+      if((p==='O'&&r.s>best.s)||(p==='X'&&r.s<best.s)) best=r;
+    }
+  }
+  return best;
+}
+
+function check(p){
+  for(let w of wins)
+    if(w.every(i=>board[i]===p)){
+      w.forEach(i=>tttGrid.children[i].classList.add('win'));
+      active=false;
+      return true;
+    }
+}
+
+function checkState(b,p){
+  return wins.some(w=>w.every(i=>b[i]===p));
+}
+
+function end(t){
+  active=false;
+  showModal(t);
+}
+</script>
+</body>
+</html>
